@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\OrderController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -30,6 +31,9 @@ Route::middleware('auth:sanctum')->group(function () {
     
         // General Management: Store, Update, Destroy for Product
     Route::apiResource('products', ProductController::class)->except(['index', 'show']); 
+
+        // General Management: Store, Update, Destroy for Order
+    Route::apiResource('orders', OrderController::class)->except(['destroy']); 
 });
 
 Route::get('/categories/{category}', [CategoryController::class, 'show']); 

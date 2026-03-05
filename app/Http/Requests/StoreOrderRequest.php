@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreCategoryRequest extends FormRequest
+class StoreOrderRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -22,18 +22,18 @@ class StoreCategoryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string|unique:categories,name|max:255',
-            'description' => 'nullable|string',
-            'status' => 'boolean'
+            'customer_name' => 'nullable|string|max:255',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.quantity' => 'required|integer|min:1',
         ];
     }
     public function messages(): array
     {
         return [
-            'name.required' => 'The category name is required to organize your products.',
-            'name.unique' => 'This category name already exists in the system.',
-            'name.max' => 'The category name is too long (maximum 255 characters).',
-            'status.boolean' => 'The status field must be either active or inactive.',
+            'items.required' => 'Please add at least one item to your cart.',
+            'items.*.product_id.exists' => 'One of the selected products is no longer available.',
+            'items.*.quantity.min' => 'Quantity must be at least 1.',
         ];
     }
 }

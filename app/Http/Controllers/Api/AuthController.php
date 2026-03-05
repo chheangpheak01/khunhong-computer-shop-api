@@ -12,7 +12,7 @@ use App\Http\Requests\LoginRequest;
 
 class AuthController extends Controller
 {
-     public function register(RegisterRequest $request)
+    public function register(RegisterRequest $request)
     {
         $validated = $request->validated();
 
@@ -32,7 +32,7 @@ class AuthController extends Controller
                     'token' => $token
                 ]
             ], 201);
-    }
+        }
 
     public function login(LoginRequest $request)
     {
@@ -49,14 +49,14 @@ class AuthController extends Controller
         $user->tokens()->delete();
         $token = $user->createToken('api-token')->plainTextToken;
 
-    return response()->json([
-        'status' => 'success',
-        'message' => 'User logged in successfully',
-        'data' => [
-            'user' => $user,
-            'token' => $token]
-        ], 200);
-    }
+        return response()->json([
+            'status' => 'success',
+            'message' => 'User logged in successfully',
+            'data' => [
+                'user' => $user,
+                'token' => $token]
+            ], 200);
+        }
 
     public function logout(Request $request)
     {
@@ -73,6 +73,6 @@ class AuthController extends Controller
             'status' => 'success',
             'message' => 'Authenticated user profile retrieved',
             'data' => $request->user() 
-            ], 200);
+        ], 200);
     }
 }

@@ -12,10 +12,6 @@ use App\Http\Resources\CategoryResource;
 
 class CategoryController extends Controller
 {
-    /**
-     * Display a listing of active categories with pagination.
-     * PUBLIC: Anyone can see this.
-     */
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 10); 
@@ -28,20 +24,12 @@ class CategoryController extends Controller
         ]);
     }
 
-    /**
-     * Display a specific category along with its related products.
-     * PUBLIC: Anyone can view this.
-     */
     public function show(Category $category)
     {
         return (new CategoryResource($category->load('products')))->additional(
             ['status' => 'success']);
     }
 
-    /**
-     * Display a listing of soft-deleted categories with pagination.
-     * PROTECTED: Admin only (requires authentication).
-     */
     public function trashed(Request $request)
     {
         $perPage = $request->input('per_page', 10); 
@@ -54,11 +42,6 @@ class CategoryController extends Controller
         ]);
     }
 
-    /**
-     * Restore a soft-deleted category by ID.
-     * PROTECTED: Admin only.
-     * Restores a category from trash and returns the restored category data.
-     */
     public function restore($id)
     {
         $category = Category::onlyTrashed()->findOrFail($id);
@@ -71,10 +54,6 @@ class CategoryController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created category.
-     * PROTECTED: Only logged-in Admin.
-     */
     public function store(StoreCategoryRequest $request)
     {
         $validated = $request->validated();
@@ -93,10 +72,6 @@ class CategoryController extends Controller
         ->setStatusCode(201);
     }
 
-    /**
-     * Update the specified category.
-     * PROTECTED: Only logged-in Admin.
-     */
     public function update(UpdateCategoryRequest $request, Category $category)
     {
         if ($category->trashed()) {
@@ -128,10 +103,6 @@ class CategoryController extends Controller
             ->setStatusCode(200);
         }
 
-    /**
-     * Remove the specified category (Soft Delete).
-     * PROTECTED: Only logged-in Admin.
-     */
     public function destroy(Category $category)
     {
         if ($category->trashed()) {
@@ -152,11 +123,6 @@ class CategoryController extends Controller
             ->setStatusCode(200);
         }
 
-    /**
-     * Permanently delete a soft-deleted category by ID.
-     * PROTECTED: Admin only.
-     * Removes the category from the database completely.
-     */
     public function forceDelete($id)
     {
         $category = Category::onlyTrashed()->findOrFail($id);

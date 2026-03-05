@@ -13,9 +13,6 @@ use App\Http\Resources\ProductResource;
 
 class ProductController extends Controller
 {
-    /**
-     * Display a listing of active products with pagination.
-     */
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 10); 
@@ -28,9 +25,6 @@ class ProductController extends Controller
             ]);
     }
 
-    /**
-     * Store a newly created product.
-     */
     public function store(StoreProductRequest $request)
     {
         $validated = $request->validated();
@@ -53,9 +47,6 @@ class ProductController extends Controller
         ->setStatusCode(201);
     }
 
-    /**
-     * Display the specified product.
-     */
     public function show(Product $product)
     {
         return (new ProductResource($product->load('category')))->additional(
@@ -66,9 +57,6 @@ class ProductController extends Controller
         ->setStatusCode(200);;
     }
 
-    /**
-     * Update the specified product.
-     */
     public function update(UpdateProductRequest $request, Product $product)
     {
         if ($product->trashed()) {
@@ -102,9 +90,6 @@ class ProductController extends Controller
         ->setStatusCode(200);;
     }
 
-    /**
-     * Remove the specified product (Soft Delete).
-     */
     public function destroy(Product $product)
     {
         if ($product->trashed()) {
@@ -124,9 +109,6 @@ class ProductController extends Controller
         ->setStatusCode(200);
     }
 
-    /**
-     * Display trashed products.
-     */
     public function trashed(Request $request)
     {
         $perPage = $request->input('per_page', 10); 
@@ -141,9 +123,6 @@ class ProductController extends Controller
         ->setStatusCode(200);
     }
 
-    /**
-     * Restore a soft-deleted product.
-     */
     public function restore($id)
     {
         $product = Product::onlyTrashed()->findOrFail($id);
@@ -158,9 +137,6 @@ class ProductController extends Controller
         ->setStatusCode(200);
     }
 
-    /**
-     * Permanently delete a product.
-     */
     public function forceDelete($id)
     {
         $product = Product::onlyTrashed()->findOrFail($id);

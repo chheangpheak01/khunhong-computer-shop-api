@@ -32,4 +32,20 @@ class StoreProductRequest extends FormRequest
             'status'      => 'sometimes|boolean',
         ];
     }
+    public function messages(): array
+    {
+        return [
+            'category_id.exists' => 'The selected category is invalid or no longer exists.',
+            'name.required'      => 'A product name is required.',
+            'name.unique'        => 'This product name is already in your inventory.',
+            'brand.required'     => 'Please specify the brand (e.g., ASUS, MSI, Logitech).',
+            'price.required'     => 'The product must have a price.',
+            'price.numeric'      => 'The price must be a valid number.',
+            'price.min'          => 'Price can not be a negative value.',
+            'stock.integer'      => 'Stock quantity must be a whole number.',
+            'stock.min'          => 'Stock cannot be less than zero.',
+            'image.image'        => 'The file must be an image.',
+            'image.max'          => 'The image size must be less than 2MB.',
+        ];
+    }
 }

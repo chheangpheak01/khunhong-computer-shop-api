@@ -32,4 +32,17 @@ class UpdateProductRequest extends FormRequest
             'image'       => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ];
     }
+    public function messages(): array
+    {
+        return [
+            'category_id.exists' => 'The selected category is invalid.',
+            'name.string'        => 'The product name must be a valid text string.',
+            'price.numeric'      => 'The price must be a number.',
+            'price.min'          => 'The price can not be lower than 0.',
+            'stock.integer'      => 'The stock must be a whole number.',
+            'stock.min'          => 'The stock can not be negative.',
+            'image.image'        => 'The uploaded file must be an image.',
+            'image.max'          => 'The image size is too large (Maximum 2MB).',
+        ];
+    }
 }
