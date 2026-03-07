@@ -32,6 +32,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // General Management: Store, Update, Destroy for Product
     Route::apiResource('products', ProductController::class)->except(['index', 'show']); 
 
+        // Professional way to handle cancellations
+    Route::get('orders/statuses', [OrderController::class, 'statuses']);
+    Route::post('/orders/{order}/cancel', [OrderController::class, 'cancel']);
+
         // General Management: Store, Update, Destroy for Order
     Route::apiResource('orders', OrderController::class)->except(['destroy']); 
 });

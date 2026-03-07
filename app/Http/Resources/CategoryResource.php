@@ -19,7 +19,7 @@ class CategoryResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'description' => $this->description,
-            'is_active' => (bool) $this->status, 
+            'is_active' => $this->deleted_at ? false : (bool) $this->status, 
             'products' => ProductResource::collection($this->whenLoaded('products')),
             'dates' => [
                 'created' => $this->created_at?->toISOString(),

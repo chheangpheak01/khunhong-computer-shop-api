@@ -15,14 +15,31 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $perPage = $request->input('per_page', 10); 
-        $products = Product::where('status', true)->with('category')->paginate($perPage);
+        $perPage = $request->input('per_page', 10);
+        $search = $request->input('search');
+        $categoryId = $request->input('category_id');
+
+        $products = Product::where('status', true)
+            ->with('category')
+            ->when($search, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('brand', 'like', "%{$search}%")
+                    ->orWhere('slug', 'like', "%{$search}%");
+                });
+            })
+            ->when($categoryId, function ($query, $categoryId) {
+                $query->where('category_id', $categoryId);
+            })
+            ->latest()
+            ->paginate($perPage);
         
-        return ProductResource::collection($products)->additional(
-            [
-                'status' => 'success',
-                'message' => 'Products retrieved successfully.'
-            ]);
+        return ProductResource::collection($products)->additional([
+            'status' => 'success',
+            'message' => $search 
+                ? "Products matching '{$search}' retrieved successfully." 
+                : "Products retrieved successfully."
+        ]);
     }
 
     public function store(StoreProductRequest $request)
@@ -54,7 +71,7 @@ class ProductController extends Controller
                 'status' => 'success'
         ])
         ->response()
-        ->setStatusCode(200);;
+        ->setStatusCode(200);
     }
 
     public function update(UpdateProductRequest $request, Product $product)
@@ -112,7 +129,14 @@ class ProductController extends Controller
     public function trashed(Request $request)
     {
         $perPage = $request->input('per_page', 10); 
-        $trashed = Product::onlyTrashed()->with('category')->paginate($perPage);
+        $search = $request->input('search');
+
+        $trashed = Product::onlyTrashed()
+            ->with('category')
+            ->when($search, function ($query, $search) {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('brand', 'like', "%{$search}%");
+            })->paginate($perPage);
 
         return ProductResource::collection($trashed)->additional(
             [

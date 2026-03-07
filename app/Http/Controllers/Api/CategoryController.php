@@ -15,30 +15,48 @@ class CategoryController extends Controller
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 10); 
-        $categories = Category::where('status', true)->paginate($perPage);
+        $search = $request->input('search');
+
+        $categories = Category::where('status', true)
+            ->when($search, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+                });
+            })
+            ->latest()
+            ->paginate($perPage);
         
-        return CategoryResource::collection($categories)->additional(
-            [
-                'status' => 'success',
-                'message' => 'Categories retrieved successfully.'
+        return CategoryResource::collection($categories)->additional([
+            'status' => 'success',
+            'message' => $search 
+                ? "Categories matching '{$search}' retrieved successfully." 
+                : 'Categories retrieved successfully.'
         ]);
     }
 
     public function show(Category $category)
     {
         return (new CategoryResource($category->load('products')))->additional(
-            ['status' => 'success']);
+            ['status' => 'success'
+        ])
+        ->response()
+        ->setStatusCode(200);
     }
 
     public function trashed(Request $request)
     {
         $perPage = $request->input('per_page', 10); 
-        $trashed = Category::onlyTrashed()->paginate($perPage);
+        $search = $request->input('search');
 
-        return CategoryResource::collection($trashed)->additional(
-            [
-                'status' => 'success',
-                'message' => 'Trashed categories retrieved successfully.'
+        $trashed = Category::onlyTrashed()
+            ->when($search, function ($query, $search) {
+                $query->where('name', 'like', "%{$search}%");
+            })->paginate($perPage);
+
+        return CategoryResource::collection($trashed)->additional([
+            'status' => 'success',
+            'message' => 'Trashed categories retrieved successfully.'
         ]);
     }
 
