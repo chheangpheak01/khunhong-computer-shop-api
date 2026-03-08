@@ -54,6 +54,7 @@ class ProductController extends Controller
         $validated['status'] = $request->input('status', true);
 
         $product = Product::create($validated);
+        $product->refresh();
         
         return (new ProductResource($product->load('category')))->additional(
             [
@@ -97,6 +98,7 @@ class ProductController extends Controller
         }
 
         $product->update($validated);
+        $product->refresh();
 
         return (new ProductResource($product->load('category')))->additional(
             [
@@ -134,8 +136,10 @@ class ProductController extends Controller
         $trashed = Product::onlyTrashed()
             ->with('category')
             ->when($search, function ($query, $search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('brand', 'like', "%{$search}%");
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('brand', 'like', "%{$search}%");
+                });
             })->paginate($perPage);
 
         return ProductResource::collection($trashed)->additional(

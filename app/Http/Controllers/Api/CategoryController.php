@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use App\Http\Requests\StoreCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Http\Resources\CategoryResource;
+use Illuminate\Support\Facades\Storage;
 
 class CategoryController extends Controller
 {
@@ -76,6 +77,10 @@ class CategoryController extends Controller
     {
         $validated = $request->validated();
 
+        if ($request->hasFile('image')) {
+            $validated['image'] = $request->file('image')->store('categories', 'public');
+        }
+
         $validated['status'] = $request->input('status', true);
         $validated['slug'] = Str::slug($validated['name']);
 
@@ -98,13 +103,15 @@ class CategoryController extends Controller
                 'message' => "Category '{$category->name}' is in the trash. Please restore it before updating."
             ], 400); 
         }
-        if (!$request->hasAny(['name', 'description', 'status'])) {
-            return response()->json([
-                'message' => 'No data provided for update.'
-                ], 400);
-        }
 
         $validated = $request->validated();
+        
+        if ($request->hasFile('image')) {
+            if ($category->image) {
+                Storage::disk('public')->delete($category->image);
+            }
+            $validated['image'] = $request->file('image')->store('categories', 'public');
+        }
 
         if (isset($validated['name'])) {
             $validated['slug'] = Str::slug($validated['name']);
@@ -144,6 +151,9 @@ class CategoryController extends Controller
     public function forceDelete($id)
     {
         $category = Category::onlyTrashed()->findOrFail($id);
+        if ($category->image) {
+        Storage::disk('public')->delete($category->image);
+        }
         $category->forceDelete();
 
         return response()->noContent();

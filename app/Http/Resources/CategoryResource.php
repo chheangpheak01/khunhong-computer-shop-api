@@ -19,6 +19,7 @@ class CategoryResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'description' => $this->description,
+            'image_url' => $this->image ? asset('storage/' . $this->image) : null,
             'is_active' => $this->deleted_at ? false : (bool) $this->status, 
             'products' => ProductResource::collection($this->whenLoaded('products')),
             'dates' => [

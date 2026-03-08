@@ -42,6 +42,7 @@ class UpdateProductRequest extends FormRequest
             'stock.integer'      => 'The stock must be a whole number.',
             'stock.min'          => 'The stock can not be negative.',
             'image.image'        => 'The uploaded file must be an image.',
+            'image.mimes'        => 'Only jpeg, png, jpg, and webp formats are supported.', 
             'image.max'          => 'The image size is too large (Maximum 2MB).',
         ];
     }

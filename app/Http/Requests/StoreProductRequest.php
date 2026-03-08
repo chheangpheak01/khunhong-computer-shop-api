@@ -45,6 +45,7 @@ class StoreProductRequest extends FormRequest
             'stock.integer'      => 'Stock quantity must be a whole number.',
             'stock.min'          => 'Stock cannot be less than zero.',
             'image.image'        => 'The file must be an image.',
+            'image.mimes'        => 'Only jpeg, png, jpg, and webp formats are supported.',
             'image.max'          => 'The image size must be less than 2MB.',
         ];
     }
