@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\ReceiptController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -20,7 +21,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/categories/trashed', [CategoryController::class, 'trashed']);
     Route::post('/categories/{id}/restore', [CategoryController::class, 'restore']); 
     Route::delete('/categories/{id}/force', [CategoryController::class, 'forceDelete']);
-
         // General Management: Store, Update, Destroy for Category
     Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
 
@@ -28,16 +28,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/products/trashed', [ProductController::class, 'trashed']);      
     Route::post('/products/{id}/restore', [ProductController::class, 'restore']);
     Route::delete('/products/{id}/force', [ProductController::class, 'forceDelete']); 
-    
         // General Management: Store, Update, Destroy for Product
     Route::apiResource('products', ProductController::class)->except(['index', 'show']); 
 
         // Professional way to handle cancellations
     Route::get('orders/statuses', [OrderController::class, 'statuses']);
     Route::post('/orders/{order}/cancel', [OrderController::class, 'cancel']);
-
-        // General Management: Store, Update, Destroy for Order
+        // General Management: Store, Update for Order
     Route::apiResource('orders', OrderController::class)->except(['destroy']); 
+    
+        // Receipt
+    Route::get('/receipts/summary', [ReceiptController::class, 'summary']);
+        // Receipt Generation tied to an Order
+    Route::post('/orders/{order}/receipt', [ReceiptController::class, 'store']);
+    Route::post('/receipts/{receipt}/void', [ReceiptController::class, 'void']);
+    // General Management: Index, Show are protected
+    Route::apiResource('receipts', ReceiptController::class)->only(['index', 'show']);
 });
 
 Route::get('/categories/{category}', [CategoryController::class, 'show']); 
