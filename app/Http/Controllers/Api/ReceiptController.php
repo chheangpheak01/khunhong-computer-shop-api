@@ -16,7 +16,7 @@ use Carbon\Carbon;
 
 class ReceiptController extends Controller
 {
-     public function index(Request $request)
+    public function index(Request $request)
     {
         $perPage = $request->input('per_page', 15);
         $search = $request->input('search');
@@ -25,13 +25,15 @@ class ReceiptController extends Controller
         $paymentMethod = $request->input('payment_method');
         $isVoided = $request->input('is_voided');
 
-        $receipts = Receipt::with('items', 'order')
+        $receipts = Receipt::with(['items', 'order', 'payment'])
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('receipt_no', 'like', "%{$search}%")
-                      ->orWhere('invoice_no', 'like', "%{$search}%")
-                      ->orWhere('customer_name', 'like', "%{$search}%")
-                      ->orWhere('payment_reference', 'like', "%{$search}%");
+                    ->orWhere('invoice_no', 'like', "%{$search}%")
+                    ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhereHas('payment', function($pay) use ($search) {
+                        $pay->where('reference_no', 'like', "%{$search}%");
+                    });
                 });
             })
             ->when($fromDate, function ($query, $fromDate) {
@@ -41,10 +43,11 @@ class ReceiptController extends Controller
                 $query->whereDate('issue_date', '<=', $toDate);
             })
             ->when($paymentMethod, function ($query, $paymentMethod) {
-                $query->where('payment_method', $paymentMethod);
+                $query->whereHas('payment', fn($q) => $q->where('method', $paymentMethod));
             })
             ->when(isset($isVoided), function ($query) use ($isVoided) {
-                $query->where('is_voided', filter_var($isVoided, FILTER_VALIDATE_BOOLEAN));
+                $bool = filter_var($isVoided, FILTER_VALIDATE_BOOLEAN);
+                $query->whereHas('payment', fn($q) => $q->where('is_voided', $bool));
             })
             ->latest()
             ->paginate($perPage);
@@ -57,7 +60,7 @@ class ReceiptController extends Controller
 
     public function show(Receipt $receipt)
     {
-        return (new ReceiptResource($receipt->load(['items', 'order'])))
+        return (new ReceiptResource($receipt->load(['items', 'order', 'payment'])))
             ->additional([
                 'status' => 'success'
             ])
@@ -90,7 +93,6 @@ class ReceiptController extends Controller
                 $subtotal = $order->total_amount;
                 $taxRate = config('app.tax_rate', 10.00);
                 $taxAmount = round($subtotal * ($taxRate / 100), 2);
- 
                 $discountAmount = $validated['discount_amount'] ?? 0;
                 $grandTotal = max(0, round(($subtotal + $taxAmount) - $discountAmount, 2));
                 
@@ -109,10 +111,15 @@ class ReceiptController extends Controller
                     'tax_amount'        => $taxAmount,
                     'discount_amount'   => $discountAmount,
                     'grand_total'       => $grandTotal,
-                    'payment_method'    => $validated['payment_method'],
-                    'payment_status'    => $validated['payment_status'] ?? 'paid', 
-                    'payment_reference' => $validated['payment_reference'] ?? null,
-                    'issued_by'         => 'system', 
+                ]);
+
+                $receipt->payment()->create([
+                    'method'         => $validated['payment_method'],
+                    'amount'         => $grandTotal,
+                    'status'         => $validated['payment_status'] ?? 'paid',
+                    'reference_no'   => $validated['payment_reference'] ?? null,
+                    'payment_date'   => now(),
+                    'is_voided'      => false,
                 ]);
 
                 foreach ($order->items as $item) {
@@ -125,7 +132,7 @@ class ReceiptController extends Controller
                     ]);
                 }
 
-                return (new ReceiptResource($receipt->load(['items', 'order'])))
+                return (new ReceiptResource($receipt->load(['items', 'order', 'payment'])))
                     ->additional([
                         'status'  => 'success',
                         'message' => "Receipt generated successfully."
@@ -143,25 +150,35 @@ class ReceiptController extends Controller
 
     public function void(VoidReceiptRequest $request, Receipt $receipt)
     {
-        if ($receipt->is_voided) {
+        $payment = $receipt->payment;
+
+        if (!$payment) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Receipt is already voided.'
+                'message' => 'No payment found for this receipt.'
+            ], 404);
+        }
+
+        if ($payment->is_voided) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Payment is already voided.'
             ], 400);
         }
 
         $validated = $request->validated();
 
         try {
-            return DB::transaction(function () use ($receipt, $validated) {
+            return DB::transaction(function () use ($payment, $validated, $receipt) {
                 if ($validated['restore_stock'] ?? false) {
                     $receipt->load('items');
                 }
-                $receipt->update([
+                
+                $payment->update([
                     'is_voided' => true,
                     'voided_at' => now(),
                     'voided_by' => 'system',
-                    'void_reason' => $validated['reason']
+                    'void_reason' => $validated['reason']  
                 ]);
 
                 if ($validated['restore_stock'] ?? false) {
@@ -172,12 +189,12 @@ class ReceiptController extends Controller
                         }
                     }
                 }
-
+                
                 return response()->json([
                     'status' => 'success',
-                    'message' => 'Receipt voided successfully.',
+                    'message' => 'Payment voided successfully.',
                     'data' => [
-                        'receipt' => new ReceiptResource($receipt->load(['items', 'order'])),
+                        'receipt' => new ReceiptResource($receipt->load(['items', 'order', 'payment'])),
                         'stock_restored' => $validated['restore_stock'] ?? false
                     ]
                 ]);
@@ -185,32 +202,34 @@ class ReceiptController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to void receipt: ' . $e->getMessage()
+                'message' => 'Failed to void payment: ' . $e->getMessage()
             ], 500);
         }
     }
 
-    public function summary(Request $request)
+   public function summary(Request $request)
     {
         $fromDate = $request->input('from_date', now()->startOfDay());
         $toDate = $request->input('to_date', now()->endOfDay());
-
+        
         $stats = Receipt::whereBetween('issue_date', [$fromDate, $toDate])
-            ->where('is_voided', false)
+            ->whereHas('payment', fn($q) => $q->where('is_voided', false))
             ->selectRaw('
                 COUNT(*) as total_count,
                 COALESCE(SUM(subtotal), 0) as total_subtotal,
                 COALESCE(SUM(tax_amount), 0) as total_tax,
                 COALESCE(SUM(discount_amount), 0) as total_discounts,
-                COALESCE(SUM(grand_total), 0) as net_revenue
-            ')
-            ->first();
+                COALESCE(SUM(grand_total), 0) as net_revenue')->first();
 
         $paymentMethods = Receipt::whereBetween('issue_date', [$fromDate, $toDate])
-            ->where('is_voided', false)
-            ->groupBy('payment_method')
-            ->select('payment_method', DB::raw('COUNT(*) as count'), DB::raw('SUM(grand_total) as total'))
-            ->get();
+            ->join('payments', 'receipts.id', '=', 'payments.receipt_id')
+            ->where('payments.is_voided', false)
+            ->groupBy('payments.method')
+            ->select(
+                'payments.method as payment_method', 
+                DB::raw('COUNT(*) as count'), 
+                DB::raw('SUM(payments.amount) as total')
+            )->get();
 
         return response()->json([
             'status' => 'success',

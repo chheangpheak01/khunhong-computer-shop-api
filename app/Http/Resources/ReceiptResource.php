@@ -12,8 +12,8 @@ class ReceiptResource extends JsonResource
      *
      * @return array<string, mixed>
      */
-    public function toArray(Request $request): array
-    {
+     public function toArray(Request $request): array
+     {
         return [
             'id' => $this->id,
             'receipt_no' => $this->receipt_no,
@@ -32,15 +32,17 @@ class ReceiptResource extends JsonResource
                 'grand_total' => (float) $this->grand_total,
             ],
             'payment' => [
-                'method' => $this->payment_method,
-                'status' => $this->payment_status,
-                'reference' => $this->payment_reference,
+                'method' => $this->payment?->method,
+                'status' => $this->payment?->status,
+                'reference' => $this->payment?->reference_no,
+                'amount' => $this->payment?->amount ? (float) $this->payment->amount : null,
+                'date' => $this->payment?->payment_date?->toISOString(),
             ],
             'void_info' => [
-                'is_voided' => (bool) $this->is_voided,
-                'voided_at' => $this->voided_at?->toISOString(),
-                'voided_by' => $this->voided_by,
-                'void_reason' => $this->void_reason,
+                'is_voided' => $this->payment?->is_voided ?? false,
+                'voided_at' => $this->payment?->voided_at?->toISOString(),
+                'voided_by' => $this->payment?->voided_by,
+                'void_reason' => $this->payment?->void_reason,
             ],
             'items' => ReceiptItemResource::collection($this->whenLoaded('items')),
             'order' => new OrderResource($this->whenLoaded('order')),

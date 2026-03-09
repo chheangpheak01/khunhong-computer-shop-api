@@ -22,14 +22,11 @@ class VoidReceiptRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'reason' => 'required|string|max:255',
-            'restore_stock' => 'sometimes|boolean'
+            'reason' => 'required|string|min:5|max:255',
+            'restore_stock' => 'boolean'
         ];
     }
-
-    /**
-     * Get custom messages for validator errors.
-     */
+    
     public function messages(): array
     {
         return [
@@ -39,9 +36,6 @@ class VoidReceiptRequest extends FormRequest
         ];
     }
 
-    /**
-     * Prepare the data for validation.
-     */
     protected function prepareForValidation(): void
     {
         $this->merge([

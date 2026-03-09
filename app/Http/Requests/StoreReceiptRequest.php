@@ -25,28 +25,29 @@ class StoreReceiptRequest extends FormRequest
         $this->merge([
             'discount_amount' => $this->discount_amount ?? 0,
             'payment_method' => strtolower($this->payment_method ?? 'cash'),
-            'payment_status'  => 'paid', 
+            'payment_status' => $this->payment_status ?? 'paid',
         ]);
     }
 
     public function rules(): array
     {
         return [
-            'payment_method'    => 'nullable|string|in:cash,credit_card,bank_transfer,qr_pay|max:50',
-            'payment_reference' => 'nullable|string|max:100',
+            'payment_method'    => 'required|string|in:cash,credit_card,bank_transfer,qr_pay|max:50',
+            'payment_reference' => 'required_if:payment_method,bank_transfer,qr_pay|nullable|string|max:100',
             'discount_amount'   => 'nullable|numeric|min:0|max:999999.99', 
             'customer_email'    => 'nullable|email|max:255',
             'customer_phone'    => 'nullable|string|max:20',
+            'payment_status'    => 'nullable|string|in:paid,pending,failed',
         ];
     }
 
     public function messages(): array
     {
         return [
-            'customer_email.email'    => 'Please provide a valid email address for the receipt.',
-            'discount_amount.numeric' => 'The discount must be a valid number.',
-            'discount_amount.min'     => 'Discount can not be a negative value.',
-            'payment_method.in'       => 'Valid payment methods are: Cash, Card, Transfer, or QR Pay.',
+            'payment_method.required'    => 'Please select a payment method.',
+            'payment_reference.required_if' => 'A reference number is required for digital payments.',
+            'customer_email.email'  => 'Please provide a valid email address.',
+            'discount_amount.min'  => 'Discount cannot be a negative value.',
         ];
     }
 }

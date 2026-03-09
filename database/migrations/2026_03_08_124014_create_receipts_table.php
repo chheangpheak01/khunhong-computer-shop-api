@@ -23,19 +23,11 @@ return new class extends Migration
         $table->decimal('tax_rate', 5, 2)->default(10.00); 
         $table->decimal('tax_amount', 12, 2)->default(0);   
         $table->decimal('discount_amount', 12, 2)->default(0); 
-        $table->decimal('grand_total', 12, 2);           
-        $table->string('payment_method')->default('cash');
-        $table->string('payment_status')->default('paid');
-        $table->string('payment_reference')->nullable();
-        $table->boolean('is_voided')->default(false);
-        $table->timestamp('voided_at')->nullable();
-        $table->string('voided_by')->nullable();
-        $table->text('void_reason')->nullable();
+        $table->decimal('grand_total', 12, 2);  
         $table->timestamp('issue_date')->nullable();
         $table->index('receipt_no');
         $table->index('order_id');
         $table->index('issue_date');
-        $table->index('payment_status');
         $table->timestamps();
         });
     }
