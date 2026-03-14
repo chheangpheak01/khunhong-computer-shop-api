@@ -129,7 +129,16 @@ class OrderController extends Controller
             ], 400);
         }
 
-        $order->update($request->validated());
+        $validated = $request->validated();
+
+        if (isset($validated['status']) && $validated['status'] !== $order->status) {
+            return response()->json([
+                'status' => 'error',
+                'message' => "Please use the specialized /cancel or /receipt endpoints to change order status."
+            ], 422);
+        }
+
+        $order->update($validated);
 
         return (new OrderResource($order->load('items.product')))->additional([
             'status' => 'success',

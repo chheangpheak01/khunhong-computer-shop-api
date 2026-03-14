@@ -72,10 +72,10 @@ class ReceiptController extends Controller
     {
         $validated = $request->validated();
 
-        if ($order->status !== 'completed') {
+        if ($order->status === 'cancelled') {
             return response()->json([
                 'status' => 'error',
-                'message' => "Receipts can only be generated for completed orders. Current status: {$order->status}"
+                'message' => "Can not generate a receipt for a cancelled order."
             ], 400);
         }
 
@@ -131,6 +131,7 @@ class ReceiptController extends Controller
                         'subtotal'     => $item->subtotal,
                     ]);
                 }
+                $order->update(['status' => 'completed']);
 
                 return (new ReceiptResource($receipt->load(['items', 'order', 'payment'])))
                     ->additional([
@@ -189,6 +190,8 @@ class ReceiptController extends Controller
                         }
                     }
                 }
+
+                $receipt->order->update(['status' => 'pending']);
                 
                 return response()->json([
                     'status' => 'success',

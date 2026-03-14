@@ -42,7 +42,7 @@ class Receipt extends Model
     {
         return $this->hasMany(ReceiptItem::class);
     }
-     public function payment(): HasOne
+    public function payment(): HasOne
     {
         return $this->hasOne(Payment::class);
     }
