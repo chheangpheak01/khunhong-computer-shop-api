@@ -23,4 +23,9 @@ class Order extends Model
     {
         return $this->hasOne(Receipt::class);
     }
+
+    public function shipment(): HasOne
+    {
+        return $this->hasOne(Shipment::class);
+    }
 }

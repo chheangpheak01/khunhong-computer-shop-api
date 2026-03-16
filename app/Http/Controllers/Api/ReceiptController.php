@@ -79,10 +79,14 @@ class ReceiptController extends Controller
             ], 400);
         }
 
-        if ($order->receipt()->exists()) {
+        $activeReceipt = $order->receipt()
+            ->whereHas('payment', fn($q) => $q->where('is_voided', false))
+            ->first();
+
+        if ($activeReceipt) {
             return response()->json([
                 'status' => 'error',
-                'message' => "Receipt already exists for this order. Receipt #: {$order->receipt->receipt_no}"
+                'message' => "An active receipt already exists for this order (#{$activeReceipt->receipt_no})."
             ], 400);
         }
 
@@ -167,14 +171,17 @@ class ReceiptController extends Controller
             ], 400);
         }
 
+        if ($receipt->order->status === 'shipped') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Cannot void payment for an order that has already been shipped.'
+            ], 400);
+        }
+
         $validated = $request->validated();
 
         try {
             return DB::transaction(function () use ($payment, $validated, $receipt) {
-                if ($validated['restore_stock'] ?? false) {
-                    $receipt->load('items');
-                }
-                
                 $payment->update([
                     'is_voided' => true,
                     'voided_at' => now(),
@@ -189,10 +196,11 @@ class ReceiptController extends Controller
                                 ->increment('stock', $item->quantity);
                         }
                     }
+                    $receipt->order->update(['status' => 'cancelled']);
+                }else {
+                    $receipt->order->update(['status' => 'pending']);
                 }
 
-                $receipt->order->update(['status' => 'pending']);
-                
                 return response()->json([
                     'status' => 'success',
                     'message' => 'Payment voided successfully.',
@@ -228,11 +236,7 @@ class ReceiptController extends Controller
             ->join('payments', 'receipts.id', '=', 'payments.receipt_id')
             ->where('payments.is_voided', false)
             ->groupBy('payments.method')
-            ->select(
-                'payments.method as payment_method', 
-                DB::raw('COUNT(*) as count'), 
-                DB::raw('SUM(payments.amount) as total')
-            )->get();
+            ->select('payments.method as payment_method', DB::raw('COUNT(*) as count'), DB::raw('SUM(payments.amount) as total'))->get();
 
         return response()->json([
             'status' => 'success',

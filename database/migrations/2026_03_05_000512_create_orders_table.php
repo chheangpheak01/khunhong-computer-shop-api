@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('invoice_no')->unique();
             $table->string('customer_name')->nullable();
             $table->decimal('total_amount', 10, 2);
-            $table->enum('status', ['pending', 'completed', 'cancelled'])->default('pending');
+            $table->string('status')->default('pending');
             $table->index('status');
             $table->timestamps();          
         });

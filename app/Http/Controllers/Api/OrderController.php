@@ -21,7 +21,8 @@ class OrderController extends Controller
             'data' => [
                 'pending' => 'Pending',
                 'completed' => 'Completed',
-                'cancelled' => 'Cancelled'
+                'cancelled' => 'Cancelled',
+                'shipped' => 'Shipped'
             ]
         ]);
     }
@@ -122,7 +123,7 @@ class OrderController extends Controller
 
     public function update(UpdateOrderRequest $request, Order $order)
     {
-        if (in_array($order->status, ['completed', 'cancelled'])) {
+        if (in_array($order->status, ['completed', 'cancelled', 'shipped'])) {
             return response()->json([
                 'status' => 'error',
                 'message' => "Order can not be updated because it is already {$order->status}."
@@ -148,7 +149,7 @@ class OrderController extends Controller
 
     public function cancel(Order $order)
     {
-        if (in_array($order->status, ['cancelled', 'completed'])) {
+        if (in_array($order->status, ['cancelled', 'completed', 'shipped'])) {
             return response()->json([
                 'status' => 'error',
                 'message' => "Order can not be cancelled because it is already {$order->status}."
