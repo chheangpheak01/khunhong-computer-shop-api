@@ -113,8 +113,8 @@ class ShipmentController extends Controller
                 $shipment->update([
                     'status'            => 'delivered',
                     'delivered_at'      => $validated['delivered_at'] ?? now(),
-                    'proof_of_delivery' => $validated['proof_of_delivery'] ?? null,
-                    'delivery_notes'    => $validated['delivery_notes'] ?? null,
+                    'proof_of_delivery' => $validated['proof_of_delivery'] ?? $shipment->proof_of_delivery,
+                    'delivery_notes'    => $validated['delivery_notes'] ?? $shipment->delivery_notes,
                 ]);
 
                 $shipment->order->update(['status' => 'delivered']);
