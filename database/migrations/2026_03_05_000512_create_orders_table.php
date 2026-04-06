@@ -14,11 +14,15 @@ return new class extends Migration
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
             $table->string('invoice_no')->unique();
-            $table->string('customer_name')->nullable();
             $table->decimal('total_amount', 10, 2);
             $table->string('status')->default('pending');
+            $table->string('customer_name')->nullable();
+            $table->string('customer_phone')->nullable();
+            $table->text('shipping_address')->nullable();
+            $table->timestamp('cancelled_at')->nullable();
+            $table->index('invoice_no'); 
             $table->index('status');
-            $table->timestamps();          
+            $table->timestamps();       
         });
     }
 

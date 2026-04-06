@@ -5,10 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class ReceiptItem extends Model
+class InvoiceDetail extends Model
 {
     protected $fillable = [
-        'receipt_id',
+        'invoice_id',
         'product_id',
         'product_name',
         'quantity',
@@ -22,11 +22,10 @@ class ReceiptItem extends Model
         'subtotal' => 'decimal:2',
     ];
 
-    public function receipt(): BelongsTo
+    public function invoice(): BelongsTo
     {
-        return $this->belongsTo(Receipt::class);
+        return $this->belongsTo(invoice::class);
     }
-    
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

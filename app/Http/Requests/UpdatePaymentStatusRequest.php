@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateOrderRequest extends FormRequest
+class UpdatePaymentStatusRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -22,16 +22,7 @@ class UpdateOrderRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'customer_name'    => 'sometimes|string|max:255',
-            'customer_phone'   => 'sometimes|string|max:20',
-            'shipping_address' => 'sometimes|string|max:1000',
-        ];
-    }
-    public function messages(): array
-    {
-        return [
-            'customer_name.string' => 'The customer name must be valid text.',
-            'customer_phone.max'   => 'The phone number is too long.',
+            'status' => 'required|string|in:paid,pending,failed'
         ];
     }
 }

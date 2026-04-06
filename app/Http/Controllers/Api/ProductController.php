@@ -117,7 +117,7 @@ class ProductController extends Controller
                 'message' => "Product is already in the trash."
             ], 409); 
         }
-
+        $product->update(['status' => false]); 
         $product->delete();
 
         return (new ProductResource($product))->additional([
@@ -155,6 +155,7 @@ class ProductController extends Controller
     {
         $product = Product::onlyTrashed()->findOrFail($id);
         $product->restore();
+        $product->update(['status' => true]);
 
         return (new ProductResource($product))->additional(
             [

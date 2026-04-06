@@ -21,18 +21,7 @@ class OrderItemResource extends JsonResource
             'unit_price' => (float) $this->unit_price,
             'total_price' => (float) $this->subtotal,
             'product_id' => $this->product_id,
+            'is_restocked' => (bool) $this->is_restocked,
         ];
-
-        // return [
-        //     'id' => $this->id,
-        //     'product' => new ProductResource($this->whenLoaded('product')),
-        //     'quantity' => (int) $this->quantity,
-        //     'unit_price' => (float) $this->unit_price,
-        //     'subtotal' => (float) $this->subtotal,
-        //     'dates' => [
-        //         'created' => $this->created_at?->toISOString(),
-        //         'updated' => $this->updated_at?->toISOString(),
-        //     ],
-        // ];
     }
 }

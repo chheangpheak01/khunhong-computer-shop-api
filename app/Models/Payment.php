@@ -26,9 +26,9 @@ class Payment extends Model
         'is_voided' => 'boolean',
         'amount' => 'decimal:2',
     ];
-
-    public function receipt(): BelongsTo
+    
+    public function order(): BelongsTo
     {
-        return $this->belongsTo(Receipt::class);
+        return $this->belongsTo(Order::class);
     }
 }

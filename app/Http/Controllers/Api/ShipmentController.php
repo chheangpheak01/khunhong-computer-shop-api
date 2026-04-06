@@ -21,11 +21,13 @@ class ShipmentController extends Controller
         $perPage = $request->input('per_page', 15);
 
         $shipments = Shipment::with('order')
-            ->when($status, fn($q) => $q->where('status', $status))
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('tracking_number', 'like', "%{$search}%")
-                    ->orWhere('carrier', 'like', "%{$search}%");
+                    ->orWhere('carrier', 'like', "%{$search}%")
+                    ->orWhereHas('order', function($orderQuery) use ($search) {
+                        $orderQuery->where('invoice_no', 'like', "%{$search}%");
+                    });
                 });
             })
             ->latest()
@@ -47,10 +49,10 @@ class ShipmentController extends Controller
 
    public function store(StoreShipmentRequest $request, Order $order)
     {
-        if ($order->status !== 'completed') {
+        if ($order->status !== 'paid' && $order->status !== 'completed') {
             return response()->json([
                 'status' => 'error', 
-                'message' => "Order #{$order->invoice_no} must be 'completed' (paid) to ship. Current status: {$order->status}"
+                'message' => "Order #{$order->id} must be paid to ship. Current status: {$order->status}"
             ], 400);
         }
 
@@ -111,13 +113,13 @@ class ShipmentController extends Controller
         try {
             return DB::transaction(function () use ($shipment, $validated) {
                 $shipment->update([
-                    'status'            => 'delivered',
+                    'status'  => 'delivered',
                     'delivered_at'      => $validated['delivered_at'] ?? now(),
                     'proof_of_delivery' => $validated['proof_of_delivery'] ?? $shipment->proof_of_delivery,
                     'delivery_notes'    => $validated['delivery_notes'] ?? $shipment->delivery_notes,
                 ]);
 
-                $shipment->order->update(['status' => 'delivered']);
+                $shipment->order->update(['status' => 'completed']);
 
                 return (new ShipmentResource($shipment->load('order')))
                     ->additional([
@@ -135,6 +137,13 @@ class ShipmentController extends Controller
 
     public function update(UpdateShipmentRequest $request, Shipment $shipment)
     {
+        if ($shipment->status === 'delivered') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Cannot update details of a delivered shipment.'
+            ], 400);
+        }
+
         $validated = $request->validated();
 
         try {
@@ -153,64 +162,19 @@ class ShipmentController extends Controller
         }
     }
 
-    public function cancel(Request $request, Shipment $shipment)
-    {
-        if (in_array($shipment->status, ['delivered', 'cancelled'])) {
-            return response()->json([
-                'status' => 'error',
-                'message' => "Cannot cancel a shipment that is already {$shipment->status}."
-            ], 400);
-        }
-
-        $validated = $request->validate([
-            'reason' => 'nullable|string|max:255',
-            'restore_stock' => 'boolean'
-        ]);
-
-        try {
-            return DB::transaction(function () use ($shipment, $validated) {
-                $shipment->update([
-                    'status' => 'cancelled',
-                    'cancelled_at' => now(),
-                    'cancellation_reason' => $validated['reason'] ?? null,
-                    'is_restocked' => $validated['restore_stock'] ?? false,
-                ]);
-
-                if ($validated['restore_stock'] ?? false) {
-                    $shipment->order->load('items');
-                    foreach ($shipment->order->items as $item) {
-                        \App\Models\Product::where('id', $item->product_id)
-                            ->lockForUpdate()
-                            ->increment('stock', $item->quantity);
-                    }
-                    $shipment->order->update(['status' => 'cancelled']);
-                } else {
-                    $shipment->order->update(['status' => 'completed']);
-                }
-
-                return (new ShipmentResource($shipment->load('order')))
-                    ->additional([
-                        'status' => 'success',
-                        'message' => 'Shipment cancelled successfully.' . (($validated['restore_stock'] ?? false) ? ' Stock restored.' : '')
-                    ]);
-            });
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to cancel shipment: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
     public function summary()
     {
         return response()->json([
             'status' => 'success',
             'data' => [
                 'in_transit' => Shipment::where('status', 'in_transit')->count(),
-                'delivered_today' => Shipment::where('status', 'delivered')->whereDate('delivered_at', now())->count(),
+                'delivered_today' => Shipment::where('status', 'delivered')
+                                        ->whereDate('delivered_at', now())
+                                        ->count(),
                 'cancelled_total' => Shipment::where('status', 'cancelled')->count(),
-                'ready_to_ship' => Order::where('status', 'completed')->whereDoesntHave('shipment')->count(),
+                'ready_to_ship'   => Order::where('status', 'paid')
+                                        ->whereDoesntHave('shipment')
+                                        ->count(),
             ]
         ]);
     }

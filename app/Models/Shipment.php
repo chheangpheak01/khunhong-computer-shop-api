@@ -16,15 +16,10 @@ class Shipment extends Model
         'delivered_at',
         'proof_of_delivery',
         'delivery_notes',
-        'is_restocked', 
-        'cancelled_at', 
-        'cancellation_reason',
     ];
     protected $casts = [
         'ship_date' => 'date',
         'delivered_at' => 'datetime',
-        'cancelled_at' => 'datetime',
-        'is_restocked' => 'boolean',
     ];
 
     public function order(): BelongsTo

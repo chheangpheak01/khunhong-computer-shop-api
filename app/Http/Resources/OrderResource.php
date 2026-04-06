@@ -17,9 +17,12 @@ class OrderResource extends JsonResource
         return [
             'id' => $this->id,
             'invoice_no' => $this->invoice_no,
+            'customer_phone' => $this->customer_phone,
+            'shipping_address' => $this->shipping_address,
             'customer_name' => $this->customer_name,
             'total_amount' => (float) $this->total_amount,
             'status' => $this->status,
+            'cancelled_at' => $this->cancelled_at?->toISOString(),
             'items' => OrderItemResource::collection($this->whenLoaded('items')),
             'dates' => [
                 'created' => $this->created_at?->toISOString(),

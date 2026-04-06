@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class VoidReceiptRequest extends FormRequest
+class VoidInvoiceRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -30,7 +30,8 @@ class VoidReceiptRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'reason.required' => 'A reason is required to void this receipt.',
+            'reason.required' => 'A reason is required to void this invoice.',
+            'reason.min' => 'Please provide a more detailed reason (at least 5 characters).',
             'reason.max' => 'The reason is too long (maximum 255 characters).',
             'restore_stock.boolean' => 'The restore_stock field must be true or false.',
         ];

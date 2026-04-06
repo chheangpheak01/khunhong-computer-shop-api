@@ -5,7 +5,7 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class ReceiptResource extends JsonResource
+class InvoiceResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -14,15 +14,17 @@ class ReceiptResource extends JsonResource
      */
      public function toArray(Request $request): array
      {
+        $payment = $this->order->payment ?? null;
+
         return [
             'id' => $this->id,
-            'receipt_no' => $this->receipt_no,
             'invoice_no' => $this->invoice_no,
             'order_id' => $this->order_id, 
             'customer' => [
                 'name' => $this->customer_name,
                 'email' => $this->customer_email,
                 'phone' => $this->customer_phone,
+                'address' => $this->shipping_address,
             ],
             'financial' => [
                 'subtotal' => (float) $this->subtotal,
@@ -32,19 +34,21 @@ class ReceiptResource extends JsonResource
                 'grand_total' => (float) $this->grand_total,
             ],
             'payment' => [
-                'method' => $this->payment?->method,
-                'status' => $this->payment?->status,
-                'reference' => $this->payment?->reference_no,
-                'amount' => $this->payment?->amount ? (float) $this->payment->amount : null,
-                'date' => $this->payment?->payment_date?->toISOString(),
+                'method' => $payment?->method,
+                'status' => $payment?->status,
+                'reference' => $payment?->reference_no,
+                'amount' => $payment?->amount ? (float) $payment->amount : null,
+                'date' => $payment?->payment_date?->toISOString(),
             ],
             'void_info' => [
-                'is_voided' => $this->payment?->is_voided ?? false,
-                'voided_at' => $this->payment?->voided_at?->toISOString(),
-                'voided_by' => $this->payment?->voided_by,
-                'void_reason' => $this->payment?->void_reason,
+                'is_voided' => $payment?->is_voided ?? false,
+                'voided_at' => $payment?->voided_at?->toISOString(),
+                'voided_by' => $payment?->voided_by,
+                'void_reason' => $payment?->void_reason,
             ],
-            'items' => ReceiptItemResource::collection($this->whenLoaded('items')),
+            'items' => OrderItemResource::collection($this->whenLoaded('order', function() {
+                return $this->order->items;
+            })),
             'order' => new OrderResource($this->whenLoaded('order')),
             'issue_date' => $this->issue_date?->toISOString(),
             'dates' => [

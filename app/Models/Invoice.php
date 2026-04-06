@@ -5,18 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use App\Models\ReceiptItem;
+use App\Models\InvoiceDetail;
 
-class Receipt extends Model
+class Invoice extends Model
 {
     protected $fillable = [
         'order_id',
-        'receipt_no',
         'invoice_no',
         'customer_name',
         'customer_email',
         'customer_phone',
+        'shipping_address',
         'subtotal',
         'tax_rate',
         'tax_amount',
@@ -33,19 +32,13 @@ class Receipt extends Model
         'grand_total' => 'decimal:2',
     ];
 
+    public function details(): HasMany
+    {
+        return $this->hasMany(InvoiceDetail::class);
+    }
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
-    }
-
-    public function items(): HasMany
-    {
-        return $this->hasMany(ReceiptItem::class);
-    }
-    public function payment(): HasOne
-    {
-        return $this->hasOne(Payment::class);
-    }
-   
+    }   
 }
 

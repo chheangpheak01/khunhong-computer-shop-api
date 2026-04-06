@@ -20,9 +20,10 @@ class OrderController extends Controller
             'status' => 'success',
             'data' => [
                 'pending' => 'Pending',
+                'paid' => 'Paid',  
+                'shipped' => 'Shipped',
                 'completed' => 'Completed',
-                'cancelled' => 'Cancelled',
-                'shipped' => 'Shipped'
+                'cancelled' => 'Cancelled'
             ]
         ]);
     }
@@ -32,15 +33,17 @@ class OrderController extends Controller
         $perPage = $request->input('per_page', 10);
         $search = $request->input('search'); 
         $status = $request->input('status'); 
+        $date = $request->input('date');
 
-        $orders = Order::with('items.product')
-            ->when($search, function ($query, $search)
-             {
-                $query->where('invoice_no', 'like', "%{$search}%")
-                    ->orWhere('customer_name', 'like', "%{$search}%");
-             })
+        $orders = Order::with(['items.product', 'payment']) 
+            ->when($search, function ($query, $search) {
+                $query->where('invoice_no', 'like', "%{$search}%");
+            })
             ->when($status, function ($query, $status) {
                 $query->where('status', $status);
+            })
+            ->when($date, function ($query, $date) {
+                $query->whereDate('created_at', $date);
             })
             ->latest()
             ->paginate($perPage);
@@ -53,7 +56,7 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        return (new OrderResource($order->load('items.product')))->additional(
+        return (new OrderResource($order->load(['items.product', 'payment', 'shipment'])))->additional(
             [
                 'status' => 'success'
         ])
@@ -75,12 +78,14 @@ class OrderController extends Controller
                 })->values();
 
             return DB::transaction(function () use ($mergedItems, $validated) {
-                
+
                 $order = Order::create([
                     'invoice_no' => 'KH-' . now()->format('YmdHis') . strtoupper(Str::random(4)),
-                    'customer_name' => $validated['customer_name'] ?? null,
                     'total_amount' => 0, 
                     'status' => 'pending',
+                    'customer_name'    => $validated['customer_name'],
+                    'customer_phone'   => $validated['customer_phone'],
+                    'shipping_address' => $validated['shipping_address'],
                 ]);
 
                 $totalAmount = 0;
@@ -100,6 +105,7 @@ class OrderController extends Controller
                         'quantity' => $item['quantity'],
                         'unit_price' => $product->price,
                         'subtotal' => $subtotal,
+                        'is_restocked' => false,
                     ]);
 
                     $product->decrement('stock', $item['quantity']);
@@ -123,49 +129,47 @@ class OrderController extends Controller
 
     public function update(UpdateOrderRequest $request, Order $order)
     {
-        if (in_array($order->status, ['completed', 'cancelled', 'shipped'])) {
+        if (in_array($order->status, ['paid', 'shipped', 'completed', 'cancelled'])) {
             return response()->json([
                 'status' => 'error',
-                'message' => "Order can not be updated because it is already {$order->status}."
+                'message' => "Order cannot be updated because it is already {$order->status}."
             ], 400);
         }
 
         $validated = $request->validated();
 
-        if (isset($validated['status']) && $validated['status'] !== $order->status) {
-            return response()->json([
-                'status' => 'error',
-                'message' => "Please use the specialized /cancel or /receipt endpoints to change order status."
-            ], 422);
-        }
-
         $order->update($validated);
 
-        return (new OrderResource($order->load('items.product')))->additional([
+        return (new OrderResource($order->load(['items.product', 'payment'])))->additional([
             'status' => 'success',
-            'message' => 'Order status updated successfully.'
+            'message' => 'Order updated successfully.'
         ]);
     }
 
     public function cancel(Order $order)
     {
-        if (in_array($order->status, ['cancelled', 'completed', 'shipped'])) {
+        if (in_array($order->status, ['paid', 'shipped', 'completed', 'cancelled'])) {
             return response()->json([
                 'status' => 'error',
-                'message' => "Order can not be cancelled because it is already {$order->status}."
+                'message' => "Order cannot be cancelled because it is already {$order->status}."
             ], 400);
         }
         try {
             return DB::transaction(function () use ($order) {
                 $order->load('items');
                 foreach ($order->items as $item) {
-                    $product = Product::lockForUpdate()->find($item->product_id);
-                    if ($product) {
-                        $product->increment('stock', $item->quantity);
+                    if (!$item->is_restocked) {
+                        $product = Product::lockForUpdate()->find($item->product_id);
+                        if ($product) {
+                            $product->increment('stock', $item->quantity);
+                        }
+                        $item->update(['is_restocked' => true]);
                     }
                 }
-                $order->update(['status' => 'cancelled']);
-
+                $order->update([
+                    'status' => 'cancelled',
+                    'cancelled_at' => now(),
+                ]);
                 return (new OrderResource($order->load('items.product')))->additional([
                     'status' => 'success',
                     'message' => 'Order cancelled and stock restored successfully.'

@@ -24,9 +24,6 @@ class ShipmentResource extends JsonResource
             'delivered_at' => $this->delivered_at?->toISOString(),
             'proof_of_delivery' => $this->proof_of_delivery,
             'delivery_notes' => $this->delivery_notes,
-            'cancelled_at' => $this->cancelled_at?->toISOString(),
-            'cancellation_reason' => $this->cancellation_reason,
-            'is_restocked' => (bool) $this->is_restocked,
             'order' => new OrderResource($this->whenLoaded('order')),
             'dates' => [
                 'created' => $this->created_at?->toISOString(),

@@ -65,6 +65,7 @@ class CategoryController extends Controller
     {
         $category = Category::onlyTrashed()->findOrFail($id);
         $category->restore();
+        $category->update(['status' => true]);
 
         return (new CategoryResource($category))->additional(
             [
@@ -136,7 +137,7 @@ class CategoryController extends Controller
                 'message' => "Category '{$category->name}' is already in the trash."
             ], 409); 
         }
-
+        $category->update(['status' => false]); 
         $category->delete();
 
         return (new CategoryResource($category))->additional(

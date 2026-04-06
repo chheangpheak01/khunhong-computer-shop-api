@@ -22,7 +22,7 @@ class StoreShipmentRequest extends FormRequest
     public function rules(): array
     {
         return [
-           'tracking_number' => 'required|string|unique:shipments|max:100',
+            'tracking_number' => 'required|string|unique:shipments|max:100',
             'carrier'  => 'required|string|max:50',
             'ship_date'  => 'required|date|after_or_equal:today',
         ];
