@@ -26,16 +26,16 @@ class Order extends Model
     {
         return $this->hasMany(OrderItem::class);
     }
-    public function invoice(): HasOne
+    public function invoice(): HasMany
     {
-        return $this->hasOne(Invoice::class);
+        return $this->hasMany(Invoice::class);
+    }
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
     }
     public function shipment(): HasOne
     {
         return $this->hasOne(Shipment::class);
-    }
-    public function payment(): HasOne
-    {
-        return $this->hasOne(Payment::class);
     }
 }

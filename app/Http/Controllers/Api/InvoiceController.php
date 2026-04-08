@@ -25,12 +25,12 @@ class InvoiceController extends Controller
         $paymentMethod = $request->input('payment_method');
         $isVoided = $request->input('is_voided');
 
-        $invoices = Invoice::with(['order.payment', 'details']) 
+        $invoices = Invoice::with(['order.payments', 'details']) 
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('invoices.invoice_no', 'like', "%{$search}%")
                     ->orWhere('invoices.order_id', 'like', "%{$search}%")
-                    ->orWhereHas('order.payment', function($pay) use ($search) {
+                    ->orWhereHas('order.payments', function($pay) use ($search) {
                         $pay->where('reference_no', 'like', "%{$search}%");
                     });
                 });
@@ -42,11 +42,14 @@ class InvoiceController extends Controller
                 $query->whereDate('invoices.created_at', '<=', $toDate);
             })
             ->when($paymentMethod, function ($query, $paymentMethod) {
-                $query->whereHas('order.payment', fn($q) => $q->where('method', $paymentMethod));
+                $query->whereHas('order.payments', function ($q) use ($paymentMethod) {
+                    $q->where('method', $paymentMethod)
+                    ->where('is_voided', false);
+                });
             })
             ->when(isset($isVoided), function ($query) use ($isVoided) {
                 $bool = filter_var($isVoided, FILTER_VALIDATE_BOOLEAN);
-                $query->whereHas('order.payment', fn($q) => $q->where('is_voided', $bool));
+                $query->whereHas('order.payments', fn($q) => $q->where('is_voided', $bool));
             })
             ->latest('invoices.created_at')
             ->paginate($perPage);
@@ -59,7 +62,7 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        return (new InvoiceResource($invoice->load(['details', 'order.payment'])))
+        return (new InvoiceResource($invoice->load(['details', 'order.payments'])))
             ->additional([
                 'status' => 'success'
             ])
@@ -79,7 +82,7 @@ class InvoiceController extends Controller
         }
 
         $activeInvoice = $order->invoice()
-            ->whereHas('order.payment', fn($q) => $q->where('is_voided', false))
+            ->whereHas('order.payments', fn($q) => $q->where('is_voided', false))
             ->first();
 
         if ($activeInvoice) {
@@ -89,8 +92,16 @@ class InvoiceController extends Controller
             ], 400);
         }
 
+        $existingCount = Invoice::where('order_id', $order->id)->count();
+        $invoiceNo = $order->invoice_no;
+
+        if ($existingCount > 0) {
+            $version = $existingCount + 1;
+            $invoiceNo = "{$order->invoice_no}-V{$version}";
+        }
+
         try {
-            return DB::transaction(function () use ($validated, $order) {
+            return DB::transaction(function () use ($validated, $order, $invoiceNo) {
                 $order->load('items.product');
         
                 $subtotal = $order->total_amount;
@@ -100,18 +111,18 @@ class InvoiceController extends Controller
                 $grandTotal = max(0, round(($subtotal + $taxAmount) - $discountAmount, 2));
                 
                 $invoice = Invoice::create([
-                    'order_id'          => $order->id,
-                    'invoice_no' => $order->invoice_no,
-                    'customer_name'     => $order->customer_name,
-                    'customer_email' => $order->customer_email, 
-                    'customer_phone' => $order->customer_phone,
-                    'shipping_address'  => $order->shipping_address,
-                    'issue_date'        => now(),
-                    'subtotal'          => $subtotal,
-                    'tax_rate'          => $taxRate,
-                    'tax_amount'        => $taxAmount,
-                    'discount_amount'   => $discountAmount,
-                    'grand_total'       => $grandTotal,
+                    'order_id'         => $order->id,
+                    'invoice_no'       => $invoiceNo, 
+                    'customer_name'    => $order->customer_name,
+                    'customer_email'   => $order->customer_email, 
+                    'customer_phone'   => $order->customer_phone,
+                    'shipping_address' => $order->shipping_address,
+                    'issue_date'       => now(),
+                    'subtotal'         => $subtotal,
+                    'tax_rate'         => $taxRate,
+                    'tax_amount'       => $taxAmount,
+                    'discount_amount'  => $discountAmount,
+                    'grand_total'      => $grandTotal,
                 ]);
 
                 foreach ($order->items as $item) {
@@ -126,7 +137,7 @@ class InvoiceController extends Controller
 
                 $paymentStatus = in_array($validated['payment_method'], ['credit_card', 'bank_transfer', 'qr_pay']) ? 'paid' : 'pending';
 
-                $order->payment()->create([
+                $order->payments()->create([
                     'method'         => $validated['payment_method'],
                     'amount'         => $grandTotal,
                     'status'         => $paymentStatus,
@@ -137,12 +148,14 @@ class InvoiceController extends Controller
 
                 if ($paymentStatus === 'paid') {
                     $order->update(['status' => 'paid']);
+                } else {
+                    $order->update(['status' => 'pending']);
                 }
 
-                return (new InvoiceResource($invoice->load(['details', 'order.payment'])))
+                return (new InvoiceResource($invoice->load(['details', 'order.payments'])))
                         ->additional([
                             'status'  => 'success',
-                            'message' => "Invoice generated successfully."
+                            'message' => "Invoice generated successfully ($invoiceNo)."
                         ])
                         ->response()
                         ->setStatusCode(201);
@@ -157,65 +170,66 @@ class InvoiceController extends Controller
 
     public function void(VoidInvoiceRequest $request, Invoice $invoice)
     {
-        $payment = $invoice->order->payment;
+        $invoice->load(['order.payments', 'details', 'order.items']);
+        
+        $payment = $invoice->order->payments()
+            ->where('is_voided', false)
+            ->latest()
+            ->first();
 
         if (!$payment) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'No payment record found for this invoice.'
-            ], 404);
-        }
-
-        if ($payment->is_voided) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Payment is already voided.'
-            ], 400);
-        }
-
-        if ($invoice->order->status === 'shipped') {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Cannot void payment for an order that has already been shipped.'
+                'message' => 'No active payment found for this invoice to void.'
             ], 400);
         }
 
         $validated = $request->validated();
+        $restoreStock = filter_var($validated['restore_stock'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         try {
-            return DB::transaction(function () use ($payment, $validated, $invoice) {
+            return DB::transaction(function () use ($payment, $validated, $invoice, $restoreStock) {
                 $payment->update([
+                    'status' => 'voided',
                     'is_voided' => true,
                     'voided_at' => now(),
-                    'voided_by' => 'system',
-                    'void_reason' => $validated['reason'] ?? 'Customer request'  
+                    'void_reason' => $validated['reason'] ?? 'Customer request'
                 ]);
 
-                if ($validated['restore_stock'] ?? false) {
-                    foreach ($invoice->order->items as $item) {
+                if ($restoreStock) {
+                    foreach ($invoice->details as $item) {
                         if ($item->product_id) {
-                            Product::where('id', $item->product_id)
-                                ->increment('stock', $item->quantity);
+                            Product::where('id', $item->product_id)->increment('stock', $item->quantity);
                         }
                     }
-                    $invoice->order->update(['status' => 'cancelled']);
-                }else {
-                    $invoice->order->update(['status' => 'pending']);
+
+                    $invoice->order->items()->update(['is_restocked' => true]);
+
+                    $invoice->order->update([
+                        'status' => 'cancelled',
+                        'cancelled_at' => now() 
+                    ]);
+                } else {
+                    $invoice->order->update([
+                        'status' => 'pending',
+                        'cancelled_at' => null 
+                    ]);
                 }
 
                 return response()->json([
                     'status' => 'success',
-                    'message' => 'Payment voided successfully.',
+                    'message' => $restoreStock ? 'Payment voided and stock restored.' : 'Payment voided. Order ready for re-payment.',
                     'data' => [
-                        'invoice' => new InvoiceResource($invoice->load(['details', 'order.payment'])),
-                        'stock_restored' => $validated['restore_stock'] ?? false
+                        'stock_restored' => $restoreStock,
+                        'order_status' => $invoice->order->status,
+                        'next_version' => Invoice::where('order_id', $invoice->order_id)->count() + 1
                     ]
                 ]);
             });
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to void payment: ' . $e->getMessage()
+                'message' => 'Failed to void invoice: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -223,9 +237,9 @@ class InvoiceController extends Controller
     {
         $fromDate = $request->filled('from_date') ? Carbon::parse($request->from_date)->startOfDay() : now()->startOfDay();
         $toDate = $request->filled('to_date') ? Carbon::parse($request->to_date)->endOfDay() : now()->endOfDay();
-
+        
         $stats = Invoice::whereBetween('invoices.created_at', [$fromDate, $toDate]) 
-            ->whereHas('order.payment', fn($q) => $q->where('is_voided', false))
+            ->whereHas('order.payments', fn($q) => $q->where('is_voided', false)->where('status', 'paid'))
             ->selectRaw('
                 COUNT(*) as total_count,
                 COALESCE(SUM(tax_amount), 0) as total_tax,
@@ -237,6 +251,7 @@ class InvoiceController extends Controller
             ->join('orders', 'invoices.order_id', '=', 'orders.id')
             ->join('payments', 'orders.id', '=', 'payments.order_id')
             ->where('payments.is_voided', false)
+            ->where('payments.status', 'paid')
             ->groupBy('payments.method')
             ->select(
                 'payments.method as payment_method', 
@@ -259,19 +274,35 @@ class InvoiceController extends Controller
 
     public function updatePaymentStatus(UpdatePaymentStatusRequest $request, Order $order)
     {
-        $order->payment->update(['status' => $request->status]);
-        
-        if ($request->status === 'paid') {
-            $order->update(['status' => 'paid']);
+        if ($order->status === 'cancelled') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'This order was cancelled. Please create a new order.'
+            ], 422);
         }
-        return response()->json([
-            'message' => 'Payment status updated successfully',
-            'data' => [
-                'order_id' => $order->id,
-                'payment_status' => $request->status,
-                'order_status' => $order->status
-            ]
-        ]);
+
+        if ($order->status === 'paid') {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Order is already marked as paid.'
+            ]);
+        }
+
+        $activePayment = $order->payments()->where('is_voided', false)->latest()->first();
+
+        if ($activePayment) {
+            return DB::transaction(function () use ($request, $activePayment, $order) {
+                $activePayment->update(['status' => $request->status]);
+                if ($request->status === 'paid') {
+                    $order->update(['status' => 'paid']);
+                } 
+                return response()->json([
+                    'status' => 'success',
+                    'message' => "Payment status updated to {$request->status}."
+                ]);
+            });
+        }
+        return response()->json(['message' => 'No active payment found'], 404);
     }
 }
 

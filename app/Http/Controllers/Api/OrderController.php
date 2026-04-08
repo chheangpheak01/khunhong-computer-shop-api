@@ -35,7 +35,7 @@ class OrderController extends Controller
         $status = $request->input('status'); 
         $date = $request->input('date');
 
-        $orders = Order::with(['items.product', 'payment']) 
+        $orders = Order::with(['items.product', 'payments']) 
             ->when($search, function ($query, $search) {
                 $query->where('invoice_no', 'like', "%{$search}%");
             })
@@ -56,7 +56,7 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        return (new OrderResource($order->load(['items.product', 'payment', 'shipment'])))->additional(
+        return (new OrderResource($order->load(['items.product', 'payments', 'shipment'])))->additional(
             [
                 'status' => 'success'
         ])
@@ -140,7 +140,7 @@ class OrderController extends Controller
 
         $order->update($validated);
 
-        return (new OrderResource($order->load(['items.product', 'payment'])))->additional([
+        return (new OrderResource($order->load(['items.product', 'payments'])))->additional([
             'status' => 'success',
             'message' => 'Order updated successfully.'
         ]);
@@ -148,7 +148,7 @@ class OrderController extends Controller
 
     public function cancel(Order $order)
     {
-        if (in_array($order->status, ['paid', 'shipped', 'completed', 'cancelled'])) {
+        if (in_array($order->status, ['shipped', 'completed', 'cancelled'])) {
             return response()->json([
                 'status' => 'error',
                 'message' => "Order cannot be cancelled because it is already {$order->status}."
@@ -156,7 +156,7 @@ class OrderController extends Controller
         }
         try {
             return DB::transaction(function () use ($order) {
-                $order->load('items');
+                $order->load(['items', 'payments']);
                 foreach ($order->items as $item) {
                     if (!$item->is_restocked) {
                         $product = Product::lockForUpdate()->find($item->product_id);
@@ -169,6 +169,12 @@ class OrderController extends Controller
                 $order->update([
                     'status' => 'cancelled',
                     'cancelled_at' => now(),
+                ]);
+                $order->payments()->where('is_voided', false)->update([
+                    'status' => 'voided',
+                    'is_voided' => true,
+                    'voided_at' => now(),
+                    'void_reason' => 'Order cancelled by customer/admin'
                 ]);
                 return (new OrderResource($order->load('items.product')))->additional([
                     'status' => 'success',

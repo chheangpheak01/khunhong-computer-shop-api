@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Carbon\Carbon;
 
 class InvoiceResource extends JsonResource
 {
@@ -13,8 +14,12 @@ class InvoiceResource extends JsonResource
      * @return array<string, mixed>
      */
      public function toArray(Request $request): array
-     {
-        $payment = $this->order->payment ?? null;
+    {
+        $payment = $this->order->payments
+            ->where('is_voided', false)
+            ->sortByDesc('created_at')
+            ->first() 
+            ?? $this->order->payments->sortByDesc('created_at')->first();
 
         return [
             'id' => $this->id,
@@ -38,13 +43,13 @@ class InvoiceResource extends JsonResource
                 'status' => $payment?->status,
                 'reference' => $payment?->reference_no,
                 'amount' => $payment?->amount ? (float) $payment->amount : null,
-                'date' => $payment?->payment_date?->toISOString(),
+                'date' => $payment?->payment_date ? Carbon::parse($payment->payment_date)->toISOString() : null,
             ],
             'void_info' => [
-                'is_voided' => $payment?->is_voided ?? false,
-                'voided_at' => $payment?->voided_at?->toISOString(),
-                'voided_by' => $payment?->voided_by,
+                'is_voided' => (bool) ($payment?->is_voided ?? false),
+                'voided_at' => $payment?->voided_at ? Carbon::parse($payment->voided_at)->toISOString() : null,
                 'void_reason' => $payment?->void_reason,
+                'voided_by' => $payment?->voided_by,
             ],
             'items' => OrderItemResource::collection($this->whenLoaded('order', function() {
                 return $this->order->items;
